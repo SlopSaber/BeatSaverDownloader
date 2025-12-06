@@ -10,7 +10,6 @@ using BeatSaverSharp.Http;
 using BS_Utils.Utilities;
 using IPA.Loader;
 using IPA.Utilities;
-using BeatSaberMarkupLanguage.Settings;
 
 namespace BeatSaverDownloader
 {
