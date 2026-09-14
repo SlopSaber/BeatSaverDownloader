@@ -68,7 +68,7 @@ namespace BeatSaverDownloader
             if (PluginManager.GetPlugin("BetterSongList") != null)
                 RegisterBookmarksFilter();
 
-            BSEvents.earlyMenuSceneLoadedFresh += OnMenuSceneLoadedFresh;
+            BSEvents.lateMenuSceneLoadedFresh += OnMenuSceneLoadedFresh;
         }
 
         private void RegisterBookmarksFilter()
@@ -94,7 +94,7 @@ namespace BeatSaverDownloader
             _bookmarksApi.Store();
         }
 
-        private void OnMenuSceneLoadedFresh(ScenesTransitionSetupDataSO data)
+        private void OnMenuSceneLoadedFresh(ScenesTransitionSetupData data)
         {
             try
             {

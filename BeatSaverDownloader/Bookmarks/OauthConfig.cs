@@ -59,7 +59,6 @@ namespace BeatSaverDownloader.Bookmarks
                     }
                     catch (Exception)
                     {
-                        Plugin.LOG.Error("Error loading Oauth config");
                         Configs["ERROR"] = Empty;
                         // ERROR loading secrets
                     }
