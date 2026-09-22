@@ -21,7 +21,7 @@ namespace BeatSaverDownloader.UI.ViewControllers
         private readonly List<object> _queueItems = new List<object>();
 
         [UIComponent("download-list")]
-        private CustomCellListTableData _downloadList;
+        private CustomCellListTableData _downloadList { get; set; }
 
         [UIAction("#post-parse")]
         internal void Setup()

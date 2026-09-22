@@ -1,13 +1,13 @@
 ﻿using System.Collections.Generic;
 using BeatSaberMarkupLanguage.Attributes;
 using BeatSaberMarkupLanguage.Settings;
-using BeatSaberMarkupLanguage.Util;
+using BeatSaberMarkupLanguage.Components;
 using BeatSaverDownloader.Bookmarks;
 using BeatSaverDownloader.Misc;
 
 namespace BeatSaverDownloader.UI
 {
-    public class Settings : NotifiableSingleton<Settings>
+    public class Settings : NotifiableBase
     {
         [UIValue("syncOnLoad")]
         public bool SyncOnLoad
@@ -54,7 +54,7 @@ namespace BeatSaverDownloader.UI
 
         public static void SetupSettings()
         {
-            BSMLSettings.Instance.AddSettingsMenu("BeatSaverDL", "BeatSaverDownloader.UI.BSML.settings.bsml", instance);
+            BSMLSettings.Instance.AddSettingsMenu("BeatSaverDL", "BeatSaverDownloader.UI.BSML.settings.bsml", Plugin.SettingsView);
         }
     }
 }

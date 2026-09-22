@@ -46,7 +46,7 @@ namespace BeatSaverDownloader.Misc
             Config.SetInt("OAuth", "ExpiresIn", UserTokens?.ExpiresIn ?? 0);
             Config.SetString("OAuth", "RefreshToken", UserTokens?.RefreshToken ?? "");
 
-            Settings.instance.LogoutInteractable = true;
+            Plugin.SettingsView.LogoutInteractable = true;
         }
     }
 }

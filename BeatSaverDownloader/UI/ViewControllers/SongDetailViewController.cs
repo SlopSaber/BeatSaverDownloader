@@ -186,7 +186,7 @@ namespace BeatSaverDownloader.UI.ViewControllers
             _coverImage = levelBar.GetField<ImageView, LevelBar>("_songArtworkImageView");
 
             _songSubText.overflowMode = TextOverflowModes.Overflow;
-            _songSubText.enableWordWrapping = false;
+            _songSubText.textWrappingMode = TMPro.TextWrappingModes.NoWrap;
 
             _npsText = _levelDetails.GetComponentsInChildren<CurvedTextMeshPro>().First(x => x.gameObject.transform.parent.name == "NPS");
             _notesText = _levelDetails.GetComponentsInChildren<CurvedTextMeshPro>().First(x => x.gameObject.transform.parent.name == "NotesCount");
@@ -253,7 +253,7 @@ namespace BeatSaverDownloader.UI.ViewControllers
 
             _diffSegmentedControl.SetTexts(diffNames.ToArray());
             foreach (var text in _diffSegmentedControl.GetComponentsInChildren<TextMeshProUGUI>())
-                text.enableWordWrapping = false;
+                text.textWrappingMode = TMPro.TextWrappingModes.NoWrap;
 
             if (diffs.Any())
                 _diffSegmentedControl.SelectCellWithNumber(0);

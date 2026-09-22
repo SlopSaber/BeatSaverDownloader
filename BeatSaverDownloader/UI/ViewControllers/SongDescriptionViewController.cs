@@ -7,7 +7,7 @@ namespace BeatSaverDownloader.UI.ViewControllers
         public override string ResourceName => "BeatSaverDownloader.UI.BSML.songDescription.bsml";
 
         [UIComponent("songDescription")]
-        private TextPageScrollView _songDescription;
+        private TextPageScrollView _songDescription { get; set; }
 
         internal void ClearData()
         {

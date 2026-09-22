@@ -13,13 +13,13 @@ namespace BeatSaverDownloader.UI.ViewControllers
         public Action MultiSelectDownloadPressed;
 
         [UIValue("multiDescription")]
-        private string _multiDescription = "\n <size=135%><b>Multi-Select Activated!</b></size>\n New Pages will not be fetched while this mode is on.\n" +
+        private string _multiDescription => "\n <size=135%><b>Multi-Select Activated!</b></size>\n New Pages will not be fetched while this mode is on.\n" +
                                            "Songs will not be added to queue if already downloaded.\n\n" +
                                            "Press the \"Add Songs to Queue\" Button to download all of your selected songs, " +
                                            "and press the clear button to clear your selection.</align>";
 
         [UIComponent("textPage")]
-        private TextPageScrollView _multiTextPage;
+        private TextPageScrollView _multiTextPage { get; set; }
 
         private string _multiDownloadText = "Add Songs To Queue";
         [UIValue("multiDownloadText")]

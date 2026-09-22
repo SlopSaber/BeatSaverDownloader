@@ -1,5 +1,4 @@
 ﻿using System;
-using System.ComponentModel;
 using System.Threading;
 using BeatSaberMarkupLanguage;
 using BeatSaberMarkupLanguage.Attributes;
@@ -8,22 +7,21 @@ using UnityEngine;
 
 namespace BeatSaverDownloader.UI.ViewControllers.DownloadQueue
 {
-    internal class DownloadQueueItem : INotifyPropertyChanged
+    internal class DownloadQueueItem
     {
         private QueueManager.QueueItem _item;
         internal readonly BeatSaverSharp.Models.Beatmap Beatmap;
         private UnityEngine.UI.Image _bgImage;
         private float _downloadingProgess;
-        public event PropertyChangedEventHandler PropertyChanged;
 
         [UIComponent("coverImage")]
-        private HMUI.ImageView _coverImage;
+        private HMUI.ImageView _coverImage { get; set; }
 
         [UIComponent("songNameText")]
-        private TextMeshProUGUI _songNameText;
+        private TextMeshProUGUI _songNameText { get; set; }
 
         [UIComponent("authorNameText")]
-        private TextMeshProUGUI _authorNameText;
+        private TextMeshProUGUI _authorNameText { get; set; }
 
         [UIAction("abortClicked")]
         internal void AbortDownload()
@@ -68,13 +66,14 @@ namespace BeatSaverDownloader.UI.ViewControllers.DownloadQueue
             _bgImage.sprite = Sprite.Create((new Texture2D(1, 1)), new Rect(0, 0, 1, 1), Vector2.one / 2f);
             _bgImage.type = UnityEngine.UI.Image.Type.Filled;
             _bgImage.fillMethod = UnityEngine.UI.Image.FillMethod.Horizontal;
-            _bgImage.fillAmount = 0;
+            _bgImage.fillAmount = _downloadingProgess;
             _bgImage.material = Utilities.ImageResources.NoGlowMat;
         }
 
         internal void ProgressUpdate(double progress)
         {
             _downloadingProgess = (float)progress;
+            if (_bgImage == null) return;
             Color color = SongCore.Utilities.HSBColor.ToColor(new SongCore.Utilities.HSBColor(Mathf.PingPong(_downloadingProgess * 0.35f, 1), 1, 1));
             color.a = 0.35f;
             _bgImage.color = color;

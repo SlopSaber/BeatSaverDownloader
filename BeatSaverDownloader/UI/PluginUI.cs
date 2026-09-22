@@ -4,7 +4,6 @@ using BeatSaberMarkupLanguage;
 using BeatSaberMarkupLanguage.MenuButtons;
 using HMUI;
 using System.Linq;
-using BeatSaberMarkupLanguage.Util;
 using BeatSaverDownloader.Bookmarks;
 using BeatSaverDownloader.Misc;
 using BeatSaverDownloader.UI.ViewControllers.DownloadQueue;
@@ -16,7 +15,7 @@ using Zenject;
 
 namespace BeatSaverDownloader.UI
 {
-    public class PluginUI : PersistentSingleton<PluginUI>
+    public class PluginUI
     {
         public MenuButton MoreSongsButton;
         internal static SongPreviewPlayer SongPreviewPlayer;

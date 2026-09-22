@@ -18,6 +18,8 @@ namespace BeatSaverDownloader
     [Plugin(RuntimeOptions.SingleStartInit)]
     public class Plugin
     {
+        private static readonly PluginUI PluginView = new PluginUI();
+        internal static readonly Settings SettingsView = new Settings();
         private PluginMetadata _metadata;
         public static IPA.Logging.Logger LOG;
         public static BeatSaverSharp.BeatSaver BeatSaver;
@@ -63,7 +65,7 @@ namespace BeatSaverDownloader
             _queueManager = new QueueManager();
             _bookmarksApi = new BookmarksApi(tokenApi, _queueManager);
 
-            PluginUI.instance.Setup(_bookmarksApi, _queueManager);
+            PluginView.Setup(_bookmarksApi, _queueManager);
 
             if (PluginManager.GetPlugin("BetterSongList") != null)
                 RegisterBookmarksFilter();
@@ -101,7 +103,7 @@ namespace BeatSaverDownloader
                 PluginUI.SetupLevelDetailClone();
                 Settings.SetupSettings();
 
-                MenuButtons.Instance.RegisterButton(PluginUI.instance.MoreSongsButton);
+                MenuButtons.Instance.RegisterButton(PluginView.MoreSongsButton);
 
                 SongCore.Loader.SongsLoadedEvent += Loader_SongsLoadedEvent;
             }
@@ -113,9 +115,9 @@ namespace BeatSaverDownloader
 
         private async void Loader_SongsLoadedEvent(SongCore.Loader arg1, ConcurrentDictionary<string, BeatmapLevel> arg2)
         {
-            if (PluginUI.instance.MoreSongsButton.Interactable) return;
+            if (PluginView.MoreSongsButton.Interactable) return;
 
-            PluginUI.instance.MoreSongsButton.Interactable = true;
+            PluginView.MoreSongsButton.Interactable = true;
             MenuButtons.Instance.InvokeMethod<object, MenuButtons>("Refresh");
 
             if (PluginConfig.UserTokens?.CouldBeValid == true && PluginConfig.SyncOnLoad)

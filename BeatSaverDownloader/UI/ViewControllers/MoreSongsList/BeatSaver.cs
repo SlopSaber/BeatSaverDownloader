@@ -69,7 +69,7 @@ namespace BeatSaverDownloader.UI.ViewControllers.MoreSongsList
                 }
             });
 
-            return www.isDone && !www.isHttpError && !www.isNetworkError;
+            return www.result == UnityWebRequest.Result.Success;
         }
 
         internal async Task<AudioClip> LoadPreview()

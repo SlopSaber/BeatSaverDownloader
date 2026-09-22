@@ -35,24 +35,24 @@ namespace BeatSaverDownloader.UI.ViewControllers
         internal NavigationController NavController;
         private CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
         [UIParams]
-        private BeatSaberMarkupLanguage.Parser.BSMLParserParams _parserParams;
+        private BeatSaberMarkupLanguage.Parser.BSMLParserParams _parserParams { get; set; }
 
         [UIComponent("list")]
-        public CustomListTableData customListTableData;
+        public CustomListTableData customListTableData { get; set; }
         [UIComponent("sortList")]
-        public CustomListTableData sortListTableData;
+        public CustomListTableData sortListTableData { get; set; }
         [UIComponent("sourceList")]
-        public CustomListTableData sourceListTableData;
+        public CustomListTableData sourceListTableData { get; set; }
         [UIComponent("loadingModal")]
-        public ModalView loadingModal;
+        public ModalView loadingModal { get; set; }
         [UIComponent("sortModal")]
-        public ModalView sortModal;
+        public ModalView sortModal { get; set; }
         [UIComponent("sortButton")]
-        private Button _sortButton;
+        private Button _sortButton { get; set; }
         [UIComponent("searchButton")]
-        private Button _searchButton;
+        private Button _searchButton { get; set; }
         [UIComponent("searchKeyboard")]
-        private ModalKeyboard _searchKeyboard;
+        private ModalKeyboard _searchKeyboard { get; set; }
 
         private string _searchValue = "";
         [UIValue("searchValue")]
@@ -236,7 +236,7 @@ namespace BeatSaverDownloader.UI.ViewControllers
         }
 
         [UIComponent("interactableGroup")]
-        private VerticalLayoutGroup _interactableGroup;
+        private VerticalLayoutGroup _interactableGroup { get; set; }
 
         [UIAction("searchPressed")]
         internal async void SearchPressed(string text)
@@ -282,7 +282,7 @@ namespace BeatSaverDownloader.UI.ViewControllers
         { }
 
         [UIComponent("songsPageDown")]
-        private Button _songsDownButton;
+        private Button _songsDownButton { get; set; }
 
         private BookmarksApi _bookmarksApi;
 
