@@ -2,6 +2,13 @@
 <Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
+    <BeatSaberDir>D:\BSManager\BSInstances\1.45.1</BeatSaberDir>
+    <GameDirectory>$(BeatSaberDir)</GameDirectory>
+    <ImportBSMTTargets>true</ImportBSMTTargets>
+    <BSMTProjectType>BSIPA</BSMTProjectType>
+    <GenerateManifest>false</GenerateManifest>
+    <CopyPDB>false</CopyPDB>
+    <DisableCopyToGame>false</DisableCopyToGame>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProjectGuid>{2E037C8B-BC3E-41AD-988F-8631AD4828FB}</ProjectGuid>
@@ -18,7 +25,6 @@
     <NuGetPackageImportStamp>
     </NuGetPackageImportStamp>
     <LocalRefsDir Condition="Exists('..\Refs')">..\Refs</LocalRefsDir>
-    <BeatSaberDir>$(LocalRefsDir)</BeatSaberDir>
     <AppOutputBase>$(MSBuildProjectDirectory)\</AppOutputBase>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|AnyCPU'">
@@ -188,10 +194,8 @@
 
   <ItemGroup>
     <PackageReference Include="BepInEx.AssemblyPublicizer.MSBuild" Version="0.4.1" PrivateAssets="all" />
+    <PackageReference Include="BeatSaberModdingTools.Tasks" Version="2.0.0-beta7" PrivateAssets="all" IncludeAssets="build;contentfiles;analyzers;buildtransitive" />
   </ItemGroup>
 
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <PropertyGroup>
-    <PostBuildEvent>copy "BeatSaverDownloader.dll" "$(BeatSaberDir)\Plugins"</PostBuildEvent>
-  </PropertyGroup>
 </Project>
