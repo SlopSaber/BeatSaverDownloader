@@ -9,6 +9,7 @@ namespace BeatSaverDownloader.UI.ViewControllers.DownloadQueue
 {
     internal class DownloadQueueItem
     {
+        private static Sprite _progressSprite;
         private QueueManager.QueueItem _item;
         internal readonly BeatSaverSharp.Models.Beatmap Beatmap;
         private UnityEngine.UI.Image _bgImage;
@@ -63,7 +64,12 @@ namespace BeatSaverDownloader.UI.ViewControllers.DownloadQueue
 
             _bgImage = _coverImage.transform.parent.gameObject.AddComponent<HMUI.ImageView>();
             _bgImage.enabled = true;
-            _bgImage.sprite = Sprite.Create((new Texture2D(1, 1)), new Rect(0, 0, 1, 1), Vector2.one / 2f);
+            if (_progressSprite == null)
+            {
+                var texture = new Texture2D(1, 1);
+                _progressSprite = Sprite.Create(texture, new Rect(0, 0, 1, 1), Vector2.one / 2f);
+            }
+            _bgImage.sprite = _progressSprite;
             _bgImage.type = UnityEngine.UI.Image.Type.Filled;
             _bgImage.fillMethod = UnityEngine.UI.Image.FillMethod.Horizontal;
             _bgImage.fillAmount = _downloadingProgess;

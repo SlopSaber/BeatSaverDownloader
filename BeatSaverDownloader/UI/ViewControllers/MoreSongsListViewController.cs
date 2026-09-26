@@ -261,9 +261,11 @@ namespace BeatSaverDownloader.UI.ViewControllers
         [UIAction("abortClicked")]
         private void AbortPageFetch()
         {
-            _cancellationTokenSource.Cancel();
-            _cancellationTokenSource.Dispose();
+            var oldSource = _cancellationTokenSource;
             _cancellationTokenSource = new CancellationTokenSource();
+            oldSource.Cancel();
+            if (!Working)
+                oldSource.Dispose();
             Working = false;
         }
 
@@ -298,6 +300,8 @@ namespace BeatSaverDownloader.UI.ViewControllers
 
         private void ClearData()
         {
+            if (Working)
+                AbortPageFetch();
             _lastPage = 0;
             customListTableData.TableView.ClearSelection();
             customListTableData.Data.Clear();
@@ -332,7 +336,6 @@ namespace BeatSaverDownloader.UI.ViewControllers
                 rt.anchorMax = new Vector2(0.5f, 1);
             }
 
-            _fetchProgress = new Progress<double>(ProgressUpdate);
             SetupSourceOptions();
             sortModal.blockerClickedEvent += SortClosed;
             var keyKey = new KEYBOARD.KEY(_searchKeyboard.Keyboard, new Vector2(-35, 11f), "Key:", 15, 10, new Color(0.92f, 0.64f, 0));
@@ -371,8 +374,10 @@ namespace BeatSaverDownloader.UI.ViewControllers
         public void SetLoading(bool value, double progress = 0, string details = "")
         {
             if (loadingSpinner == null)
+            {
                 loadingSpinner = Instantiate(Resources.FindObjectsOfTypeAll<LoadingControl>().First(), loadingModal.transform);
-            Destroy(loadingSpinner.GetComponent<Touchable>());
+                Destroy(loadingSpinner.GetComponent<Touchable>());
+            }
             if (value)
             {
                 _parserParams.EmitEvent("open-loadingModal");
@@ -426,6 +431,13 @@ namespace BeatSaverDownloader.UI.ViewControllers
         private async Task GetNewPage(uint count = 1)
         {
             if (Working) return;
+            var requestSource = _cancellationTokenSource;
+            var token = requestSource.Token;
+            _fetchProgress = new Progress<double>(progress =>
+            {
+                if (!token.IsCancellationRequested)
+                    ProgressUpdate(progress);
+            });
             _endOfResults = false;
             Plugin.LOG.Info($"Fetching {count} new page(s)");
             Working = true;
@@ -434,59 +446,66 @@ namespace BeatSaverDownloader.UI.ViewControllers
                 switch (CurrentFilter)
                 {
                     case Filters.FilterMode.BeatSaver:
-                        await GetPagesBeatSaver(count);
+                        await GetPagesBeatSaver(count, token);
                         break;
                     case Filters.FilterMode.ScoreSaber:
-                        await GetPagesScoreSaber(count);
+                        await GetPagesScoreSaber(count, token);
                         break;
                     case Filters.FilterMode.Search:
-                        await GetPagesSearch(count);
+                        await GetPagesSearch(count, token);
                         break;
                     default:
                         throw new ArgumentOutOfRangeException();
                 }
             }
-            catch (TaskCanceledException e)
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
             {
                 Plugin.LOG.Warn("Page Fetching Aborted.");
-                Plugin.LOG.Critical(e.InnerException ?? e);
             }
             catch (Exception e)
             {
                 Plugin.LOG.Critical("Failed to fetch new pages!");
                 Plugin.LOG.Critical(e.InnerException ?? e);
             }
-            Working = false;
+            finally
+            {
+                if (requestSource == _cancellationTokenSource)
+                    Working = false;
+                else
+                    requestSource.Dispose();
+            }
         }
 
-        private async Task<Songs> FetchFromScoreSaber(Filters.ScoreSaberFilterOptions filter)
+        private async Task<Songs> FetchFromScoreSaber(Filters.ScoreSaberFilterOptions filter, CancellationToken token)
         {
             switch (filter)
             {
                 case Filters.ScoreSaberFilterOptions.Trending:
-                    return await ScoreSaber.Trending(_lastPage, _cancellationTokenSource.Token, _fetchProgress);
+                    return await ScoreSaber.Trending(_lastPage, token, _fetchProgress);
                 case Filters.ScoreSaberFilterOptions.Ranked:
-                    return await ScoreSaber.Ranked(_lastPage, _cancellationTokenSource.Token, _fetchProgress);
+                    return await ScoreSaber.Ranked(_lastPage, token, _fetchProgress);
                 case Filters.ScoreSaberFilterOptions.Qualified:
-                    return await ScoreSaber.Qualified(_lastPage, _cancellationTokenSource.Token, _fetchProgress);
+                    return await ScoreSaber.Qualified(_lastPage, token, _fetchProgress);
                 case Filters.ScoreSaberFilterOptions.Loved:
-                    return await ScoreSaber.Loved(_lastPage, _cancellationTokenSource.Token, _fetchProgress);
+                    return await ScoreSaber.Loved(_lastPage, token, _fetchProgress);
                 case Filters.ScoreSaberFilterOptions.Plays:
-                    return await ScoreSaber.Plays(_lastPage, _cancellationTokenSource.Token, _fetchProgress);
+                    return await ScoreSaber.Plays(_lastPage, token, _fetchProgress);
                 case Filters.ScoreSaberFilterOptions.Difficulty:
-                    return await ScoreSaber.Difficulty(_lastPage, _cancellationTokenSource.Token, _fetchProgress);
+                    return await ScoreSaber.Difficulty(_lastPage, token, _fetchProgress);
                 default:
                     throw new ArgumentOutOfRangeException();
             }
         }
 
-        private async Task GetPagesScoreSaber(uint count)
+        private async Task GetPagesScoreSaber(uint count, CancellationToken token)
         {
             var newMaps = new List<Song>();
             for (uint i = 0; i < count; ++i)
             {
+                token.ThrowIfCancellationRequested();
                 _fetchingDetails = $"({i + 1}/{count})";
-                var page = await FetchFromScoreSaber(CurrentScoreSaberFilter);
+                var page = await FetchFromScoreSaber(CurrentScoreSaberFilter, token);
+                token.ThrowIfCancellationRequested();
                 _lastPage++;
 
                 if (page?.songs != null)
@@ -496,6 +515,7 @@ namespace BeatSaverDownloader.UI.ViewControllers
             }
 
             var maps = await Plugin.BeatSaver.BeatmapByHash(newMaps.Select(x => x.id).ToArray());
+            token.ThrowIfCancellationRequested();
             var newMapsCast = newMaps
                 .Select(x => maps.TryGetValue(x.id.ToUpperInvariant(), out var fromScoreSaber) ? fromScoreSaber : null)
                 .Where(x => x != null)
@@ -535,18 +555,20 @@ namespace BeatSaverDownloader.UI.ViewControllers
             return options;
         }
 
-        private async Task GetPagesBeatSaver(uint count)
+        private async Task GetPagesBeatSaver(uint count, CancellationToken token)
         {
             var newMaps = new List<Beatmap>();
             for (uint i = 0; i < count; ++i)
             {
                 try
                 {
+                    token.ThrowIfCancellationRequested();
                     _fetchingDetails = $"({i + 1}/{count})";
 
                     var page = CurrentBeatSaverFilter != Filters.BeatSaverFilterOptions.Uploader
-                        ? await Plugin.BeatSaver.SearchBeatmaps(GenerateOptions(CurrentBeatSaverFilter, AllowAIGeneratedMaps), (int)_lastPage, _cancellationTokenSource.Token)
-                        : await _currentUploader.Beatmaps((int)_lastPage, _cancellationTokenSource.Token);
+                        ? await Plugin.BeatSaver.SearchBeatmaps(GenerateOptions(CurrentBeatSaverFilter, AllowAIGeneratedMaps), (int)_lastPage, token)
+                        : await _currentUploader.Beatmaps((int)_lastPage, token);
+                    token.ThrowIfCancellationRequested();
 
                     _lastPage++;
 
@@ -555,21 +577,27 @@ namespace BeatSaverDownloader.UI.ViewControllers
 
                     if (page?.Empty != false) break;
                 }
+                catch (OperationCanceledException) when (token.IsCancellationRequested)
+                {
+                    throw;
+                }
                 catch (Exception)
                 {
                     // pages didn't load properly
                 }
             }
 
+            token.ThrowIfCancellationRequested();
             AddMapsToView(newMaps);
             _fetchingDetails = "";
         }
 
-        private async Task DoKeySearch()
+        private async Task DoKeySearch(CancellationToken token)
         {
             var key = _currentSearch.Split(':')[1];
             _fetchingDetails = $" (By Key:{key}";
-            var keyMap = await Plugin.BeatSaver.Beatmap (key, _cancellationTokenSource.Token);
+            var keyMap = await Plugin.BeatSaver.Beatmap (key, token);
+            token.ThrowIfCancellationRequested();
             if (keyMap != null && _songs.All(x => x.Value != keyMap))
             {
                 _songs.Add(new StrongBox<Beatmap>(keyMap));
@@ -581,11 +609,11 @@ namespace BeatSaverDownloader.UI.ViewControllers
             _fetchingDetails = "";
         }
 
-        private async Task GetPagesSearch(uint count)
+        private async Task GetPagesSearch(uint count, CancellationToken token)
         {
             if (_currentSearch.StartsWith("Key:"))
             {
-                await DoKeySearch();
+                await DoKeySearch(token);
                 return;
             }
 
@@ -594,8 +622,10 @@ namespace BeatSaverDownloader.UI.ViewControllers
             {
                 try
                 {
+                    token.ThrowIfCancellationRequested();
                     _fetchingDetails = $"({i + 1}/{count})";
-                    var page = await Plugin.BeatSaver.SearchBeatmaps(new SearchTextFilterOption(_currentSearch), (int) _lastPage, _cancellationTokenSource.Token);
+                    var page = await Plugin.BeatSaver.SearchBeatmaps(new SearchTextFilterOption(_currentSearch), (int) _lastPage, token);
+                    token.ThrowIfCancellationRequested();
 
                     _lastPage++;
 
@@ -604,12 +634,17 @@ namespace BeatSaverDownloader.UI.ViewControllers
 
                     if (page?.Empty != false) break;
                 }
+                catch (OperationCanceledException) when (token.IsCancellationRequested)
+                {
+                    throw;
+                }
                 catch
                 {
                     // really should add proper error handling to this
                 }
             }
 
+            token.ThrowIfCancellationRequested();
             AddMapsToView(newMaps);
             _fetchingDetails = "";
         }
@@ -622,8 +657,9 @@ namespace BeatSaverDownloader.UI.ViewControllers
                 customListTableData.Data.Add(SongDownloader.IsSongDownloaded(song.LatestVersion.Hash)
                     ? new BeatSaverCustomSongCellInfo(song, CellDidSetImage, $"<#7F7F7F>{song.Name}", song.Uploader.Name)
                     : new BeatSaverCustomSongCellInfo(song, CellDidSetImage, song.Name, song.Uploader.Name));
-                customListTableData.TableView.ReloadDataKeepingPosition();
             }
+            if (newMaps.Count > 0)
+                customListTableData.TableView.ReloadDataKeepingPosition();
         }
 
         private void CellDidSetImage(CustomListTableData.CustomCellInfo cell)

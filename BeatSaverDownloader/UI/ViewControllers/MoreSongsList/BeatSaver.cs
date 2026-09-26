@@ -49,25 +49,20 @@ namespace BeatSaverDownloader.UI.ViewControllers.MoreSongsList
                 post = a => startThread.Send(_ => a(), null);
             }
 
-            await Task.Run(() =>
+            var lastState = 0f;
+            var timeouter = System.Diagnostics.Stopwatch.StartNew();
+
+            while (!req.isDone)
             {
-                var lastState = 0f;
-                var timeouter = new System.Diagnostics.Stopwatch();
-                timeouter.Start();
-
-                while (!req.isDone)
+                if (timeouter.ElapsedMilliseconds > 50000 || (lastState == 0 && timeouter.ElapsedMilliseconds > 6000))
                 {
-                    if (timeouter.ElapsedMilliseconds > 50000 || (lastState == 0 && timeouter.ElapsedMilliseconds > 6000))
-                    {
-                        post(www.Abort);
-                        throw new TimeoutException();
-                    }
-
-                    Thread.Sleep(20);
-
-                    lastState = www.downloadProgress;
+                    post(www.Abort);
+                    throw new TimeoutException();
                 }
-            });
+
+                await Task.Delay(100);
+                lastState = www.downloadProgress;
+            }
 
             return www.result == UnityWebRequest.Result.Success;
         }

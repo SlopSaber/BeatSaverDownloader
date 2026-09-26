@@ -26,10 +26,19 @@ namespace BeatSaverDownloader.UI.ViewControllers
         [UIAction("#post-parse")]
         internal void Setup()
         {
+            DidAbortDownload -= UpdateDownloadingState;
+            DidFinishDownloadingItem -= UpdateDownloadingState;
             DidAbortDownload += UpdateDownloadingState;
             DidFinishDownloadingItem += UpdateDownloadingState;
 
             Reload();
+        }
+
+        protected override void OnDestroy()
+        {
+            DidAbortDownload -= UpdateDownloadingState;
+            DidFinishDownloadingItem -= UpdateDownloadingState;
+            base.OnDestroy();
         }
 
         internal void AddQueueManager(QueueManager manager)

@@ -35,6 +35,7 @@ namespace BeatSaverDownloader.UI.ViewControllers
 
         private TextMeshProUGUI _songNameText;
         private ImageView _coverImage;
+        private static Sprite _emptyCover;
 
         private TextMeshProUGUI _songSubText;
         private CurvedTextMeshPro _npsText;
@@ -119,7 +120,9 @@ namespace BeatSaverDownloader.UI.ViewControllers
             _downText.text = "--";
             _songNameText.text = "--";
             _songSubText.text = "--";
-            _coverImage.sprite = Sprites.LoadSpriteFromTexture(Texture2D.blackTexture);
+            if (_emptyCover == null)
+                _emptyCover = Sprites.LoadSpriteFromTexture(Texture2D.blackTexture);
+            _coverImage.sprite = _emptyCover;
             _diffSegmentedControl.SetTexts(new string[] { });
             _characteristicSegmentedControl.SetData(new IconSegmentedControl.DataItem[] { });
             DownloadInteractable = false;

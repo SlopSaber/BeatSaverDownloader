@@ -105,6 +105,7 @@ namespace BeatSaverDownloader
 
                 MenuButtons.Instance.RegisterButton(PluginView.MoreSongsButton);
 
+                SongCore.Loader.SongsLoadedEvent -= Loader_SongsLoadedEvent;
                 SongCore.Loader.SongsLoadedEvent += Loader_SongsLoadedEvent;
             }
             catch (Exception e)

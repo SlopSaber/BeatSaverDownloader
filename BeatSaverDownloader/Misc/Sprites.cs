@@ -92,10 +92,12 @@ namespace BeatSaverDownloader.Misc
 
         private static Texture2D LoadTextureRaw(byte[] file)
         {
-            if (!file.Any()) return null;
+            if (file == null || file.Length == 0) return null;
 
             var tex2D = new Texture2D(2, 2);
-            return tex2D.LoadImage(file) ? tex2D : null;
+            if (tex2D.LoadImage(file)) return tex2D;
+            UnityEngine.Object.Destroy(tex2D);
+            return null;
         }
 
         private static Texture2D LoadTextureFromFile(string filePath)
