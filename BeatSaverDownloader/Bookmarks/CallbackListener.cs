@@ -9,9 +9,8 @@ namespace BeatSaverDownloader.Bookmarks
     internal sealed class CallbackListener
     {
         private readonly TokenApi _tokenApi;
-        private HttpListener _listener;
+        private volatile HttpListener _listener;
         public const string CallbackBase = "http://localhost:45222/";
-        private bool _shouldRun;
 
         internal CallbackListener(TokenApi tokenApi)
         {
@@ -20,38 +19,62 @@ namespace BeatSaverDownloader.Bookmarks
 
         public void Start()
         {
-            _shouldRun = true;
-            _listener = new HttpListener {
+            if (_listener != null) return;
+
+            var listener = new HttpListener {
                 Prefixes = { CallbackBase }
             };
 
             try
             {
-                _listener.Start();
-
-                _ = Task.Run(async () => {
-                    while (_shouldRun) {
-                        try {
-                            var context = await _listener.GetContextAsync().ConfigureAwait(false);
-                            await HandleContext(context).ConfigureAwait(false);
-                        } catch (Exception e) {
-                            Plugin.LOG.Error("An error occured while handling request");
-                            Plugin.LOG.Error(e);
-                        }
-                    }
-
-                    // ReSharper disable once FunctionNeverReturns
-                });
+                listener.Start();
+                _listener = listener;
+                _ = ListenLoop(listener);
 
                 Plugin.LOG.Debug("Internal webserver started");
             } catch (Exception e) {
+                listener.Close();
                 Plugin.LOG.Error(e);
             }
         }
 
         public void Stop()
         {
-            _shouldRun = false;
+            var listener = _listener;
+            _listener = null;
+            listener?.Close();
+        }
+
+        private async Task ListenLoop(HttpListener listener)
+        {
+            while (ReferenceEquals(_listener, listener))
+            {
+                HttpListenerContext context;
+                try
+                {
+                    context = await listener.GetContextAsync().ConfigureAwait(false);
+                }
+                catch (Exception e)
+                {
+                    if (ReferenceEquals(_listener, listener))
+                    {
+                        listener.Close();
+                        _listener = null;
+                        Plugin.LOG.Error(e);
+                    }
+                    break;
+                }
+
+                try
+                {
+                    await HandleContext(context).ConfigureAwait(false);
+                }
+                catch (Exception e)
+                {
+                    Plugin.LOG.Error("An error occured while handling request");
+                    Plugin.LOG.Error(e);
+                }
+            }
         }
 
         private readonly byte[] _responseBuffer = Encoding.UTF8.GetBytes("<p>You can now close this tab</p>\n<script>close();</script>");
