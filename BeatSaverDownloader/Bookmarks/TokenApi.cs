@@ -5,6 +5,7 @@ using System.Net.Http;
 using System.Threading.Tasks;
 using BeatSaverDownloader.Misc;
 using Newtonsoft.Json;
+using IPA.Utilities;
 
 namespace BeatSaverDownloader.Bookmarks
 {
@@ -21,6 +22,8 @@ namespace BeatSaverDownloader.Bookmarks
 
         public async Task ExchangeCode(string code, string state)
         {
+            await UnityGame.SwitchToMainThreadAsync();
+            if (PluginConfig.IsStopping) return;
             var req = new HttpRequestMessage
             {
                 Method = HttpMethod.Post,
@@ -49,10 +52,14 @@ namespace BeatSaverDownloader.Bookmarks
                     throw new InvalidOauthCredentialsException("Invalid state in exchange");
                 }
 
-                PluginConfig.UserTokens = JsonConvert.DeserializeObject<OauthResponse>(json);
-                PluginConfig.SaveConfig();
+                var tokens = await Task.Run(() => JsonConvert.DeserializeObject<OauthResponse>(json));
+                await UnityGame.SwitchToMainThreadAsync();
+                if (PluginConfig.IsStopping) return;
+                PluginConfig.UserTokens = tokens;
+                await PluginConfig.SaveConfigAsync();
 
-                await TriggerCallback(state);
+                if (!PluginConfig.IsStopping)
+                    await TriggerCallback(state);
             }
             else
             {
@@ -78,6 +85,8 @@ namespace BeatSaverDownloader.Bookmarks
 
         public async Task RefreshToken(Func<Task> cb, bool interactive = true)
         {
+            await UnityGame.SwitchToMainThreadAsync();
+            if (PluginConfig.IsStopping) throw new InvalidOauthCredentialsException("Downloader is stopping");
             if (!string.IsNullOrEmpty(PluginConfig.UserTokens?.RefreshToken))
             {
                 var req = new HttpRequestMessage
@@ -101,8 +110,11 @@ namespace BeatSaverDownloader.Bookmarks
                     Plugin.LOG.Debug("Successfully refreshed access token");
 
                     var json = await response.Content.ReadAsStringAsync();
-                    PluginConfig.UserTokens = JsonConvert.DeserializeObject<OauthResponse>(json);
-                    PluginConfig.SaveConfig();
+                    var tokens = await Task.Run(() => JsonConvert.DeserializeObject<OauthResponse>(json));
+                    await UnityGame.SwitchToMainThreadAsync();
+                    if (PluginConfig.IsStopping) throw new InvalidOauthCredentialsException("Downloader is stopping");
+                    PluginConfig.UserTokens = tokens;
+                    await PluginConfig.SaveConfigAsync();
 
                     return;
                 }

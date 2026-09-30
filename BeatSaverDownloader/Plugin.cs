@@ -10,6 +10,7 @@ using BeatSaverSharp.Http;
 using BS_Utils.Utilities;
 using IPA.Loader;
 using IPA.Utilities;
+using System.Threading.Tasks;
 
 namespace BeatSaverDownloader
 {
@@ -26,6 +27,10 @@ namespace BeatSaverDownloader
         private CallbackListener _listener;
         private BookmarksApi _bookmarksApi;
         private QueueManager _queueManager;
+        private Task _initialization = Task.CompletedTask;
+        private bool _enabled;
+        private bool _exiting;
+        private int _menuRequest;
         public static string UserAgent = "";
 
         [Init]
@@ -38,11 +43,24 @@ namespace BeatSaverDownloader
 
         public void OnApplicationQuit()
         {
-            PluginConfig.SaveConfig();
+            PluginConfig.SaveAndFlush();
         }
 
         [OnStart]
         public void OnApplicationStart()
+        {
+            BSEvents.lateMenuSceneLoadedFresh += OnMenuSceneLoadedFresh;
+            _initialization = InitializeAsync();
+            ObserveInitialization();
+        }
+
+        private async void ObserveInitialization()
+        {
+            try { await _initialization; }
+            catch (Exception e) { LOG.Critical(e); }
+        }
+
+        private async Task InitializeAsync()
         {
             BeatSaver = new BeatSaverSharp.BeatSaver(
                 new BeatSaverSharp.BeatSaverOptions(
@@ -51,7 +69,9 @@ namespace BeatSaverDownloader
                 )
             );
 
-            PluginConfig.LoadConfig();
+            await PluginConfig.LoadConfigAsync();
+            await UnityGame.SwitchToMainThreadAsync();
+            if (_exiting) return;
             Sprites.ConvertToSprites();
 
             if (OauthConfig.Current.AppAuth != null)
@@ -70,7 +90,8 @@ namespace BeatSaverDownloader
             if (PluginManager.GetPlugin("BetterSongList") != null)
                 RegisterBookmarksFilter();
 
-            BSEvents.lateMenuSceneLoadedFresh += OnMenuSceneLoadedFresh;
+            if (_enabled)
+                _listener.Start();
         }
 
         private void RegisterBookmarksFilter()
@@ -81,25 +102,36 @@ namespace BeatSaverDownloader
         [OnEnable]
         public void OnEnable()
         {
-            _listener.Start();
+            _enabled = true;
+            _listener?.Start();
         }
 
         [OnDisable]
         public void OnDisable()
         {
-            _listener.Stop();
+            _enabled = false;
+            _listener?.Stop();
         }
 
         [OnExit]
         public void OnExit()
         {
-            _bookmarksApi.Store();
+            _exiting = true;
+            _listener?.Stop();
+            BSEvents.lateMenuSceneLoadedFresh -= OnMenuSceneLoadedFresh;
+            SongCore.Loader.SongsLoadedEvent -= Loader_SongsLoadedEvent;
+            PluginConfig.SaveAndFlush();
+            _bookmarksApi?.Store();
         }
 
-        private void OnMenuSceneLoadedFresh(ScenesTransitionSetupData data)
+        private async void OnMenuSceneLoadedFresh(ScenesTransitionSetupData data)
         {
+            var request = ++_menuRequest;
             try
             {
+                await _initialization;
+                await UnityGame.SwitchToMainThreadAsync();
+                if (_exiting || request != _menuRequest) return;
                 PluginUI.SetupLevelDetailClone();
                 Settings.SetupSettings();
 
@@ -107,6 +139,8 @@ namespace BeatSaverDownloader
 
                 SongCore.Loader.SongsLoadedEvent -= Loader_SongsLoadedEvent;
                 SongCore.Loader.SongsLoadedEvent += Loader_SongsLoadedEvent;
+                if (SongCore.Loader.AreSongsLoaded)
+                    Loader_SongsLoadedEvent(null, SongCore.Loader.CustomLevels);
             }
             catch (Exception e)
             {
@@ -116,6 +150,8 @@ namespace BeatSaverDownloader
 
         private async void Loader_SongsLoadedEvent(SongCore.Loader arg1, ConcurrentDictionary<string, BeatmapLevel> arg2)
         {
+            await UnityGame.SwitchToMainThreadAsync();
+            if (_exiting) return;
             if (PluginView.MoreSongsButton.Interactable) return;
 
             PluginView.MoreSongsButton.Interactable = true;

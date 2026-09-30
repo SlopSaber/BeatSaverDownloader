@@ -16,7 +16,7 @@ namespace BeatSaverDownloader.UI
             set
             {
                 PluginConfig.SyncOnLoad = value;
-                PluginConfig.SaveConfig();
+                PluginConfig.SaveInBackground();
                 NotifyPropertyChanged();
             }
         }
@@ -32,7 +32,7 @@ namespace BeatSaverDownloader.UI
         private void Logout()
         {
             PluginConfig.UserTokens = null;
-            PluginConfig.SaveConfig();
+            PluginConfig.SaveInBackground();
 
             LogoutInteractable = true;
         }
@@ -44,7 +44,7 @@ namespace BeatSaverDownloader.UI
             set
             {
                 PluginConfig.OauthEnvironment = value;
-                PluginConfig.SaveConfig();
+                PluginConfig.SaveInBackground();
                 NotifyPropertyChanged();
             }
         }
