@@ -242,11 +242,11 @@ namespace BeatSaverDownloader.Bookmarks
                     {
                         _bookmarkHashes.Add(bReq.Hash);
                     }
-                    ++_bookmarkVersion;
                     else
                     {
                         _bookmarkHashes.Remove(bReq.Hash);
                     }
+                    ++_bookmarkVersion;
                 }
 
                 return Task.FromResult(result);
