@@ -93,6 +93,9 @@ namespace BeatSaverDownloader
             await _bookmarksApi.InitializeAsync();
             await UnityGame.SwitchToMainThreadAsync();
             if (_exiting) return;
+            await SongDownloader.Instance.WaitForHashPreparationAsync();
+            await UnityGame.SwitchToMainThreadAsync();
+            if (_exiting) return;
 
             PluginView.Setup(_bookmarksApi, _queueManager);
 
@@ -161,6 +164,9 @@ namespace BeatSaverDownloader
 
         private async void Loader_SongsLoadedEvent(SongCore.Loader arg1, ConcurrentDictionary<string, BeatmapLevel> arg2)
         {
+            await UnityGame.SwitchToMainThreadAsync();
+            if (_exiting) return;
+            await SongDownloader.Instance.WaitForHashPreparationAsync();
             await UnityGame.SwitchToMainThreadAsync();
             if (_exiting) return;
             if (PluginView.MoreSongsButton.Interactable) return;
