@@ -29,6 +29,7 @@ namespace BeatSaverDownloader
         private QueueManager _queueManager;
         private Task _initialization = Task.CompletedTask;
         private bool _enabled;
+        private bool _ready;
         private bool _exiting;
         private int _menuRequest;
         public static string UserAgent = "";
@@ -84,12 +85,16 @@ namespace BeatSaverDownloader
             _listener = new CallbackListener(tokenApi);
             _queueManager = new QueueManager();
             _bookmarksApi = new BookmarksApi(tokenApi, _queueManager);
+            await _bookmarksApi.InitializeAsync();
+            await UnityGame.SwitchToMainThreadAsync();
+            if (_exiting) return;
 
             PluginView.Setup(_bookmarksApi, _queueManager);
 
             if (PluginManager.GetPlugin("BetterSongList") != null)
                 RegisterBookmarksFilter();
 
+            _ready = true;
             if (_enabled)
                 _listener.Start();
         }
@@ -103,7 +108,8 @@ namespace BeatSaverDownloader
         public void OnEnable()
         {
             _enabled = true;
-            _listener?.Start();
+            if (_ready)
+                _listener.Start();
         }
 
         [OnDisable]
@@ -121,7 +127,7 @@ namespace BeatSaverDownloader
             BSEvents.lateMenuSceneLoadedFresh -= OnMenuSceneLoadedFresh;
             SongCore.Loader.SongsLoadedEvent -= Loader_SongsLoadedEvent;
             PluginConfig.SaveAndFlush();
-            _bookmarksApi?.Store();
+            _bookmarksApi?.StoreAndFlush();
         }
 
         private async void OnMenuSceneLoadedFresh(ScenesTransitionSetupData data)

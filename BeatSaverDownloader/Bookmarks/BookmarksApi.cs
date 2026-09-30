@@ -29,6 +29,12 @@ namespace BeatSaverDownloader.Bookmarks
         private readonly TokenApi _tokenApi;
         private HashSet<string> _bookmarkHashes = new HashSet<string>();
         private readonly QueueManager _queueManager;
+        private readonly object _storageLock = new object();
+        private readonly Task<HashSet<string>> _loadedHashes;
+        private Task _pendingStorage;
+        private bool _loaded;
+        private bool _stopping;
+        private int _bookmarkVersion;
 
         public BookmarksApi(TokenApi tokenApi, QueueManager queueManager)
         {
@@ -39,25 +45,88 @@ namespace BeatSaverDownloader.Bookmarks
             _bookmarksClient.BaseAddress = new Uri(OauthConfig.Current.ApiBase, UriKind.Absolute);
             _bookmarksClient.DefaultRequestHeaders.UserAgent.TryParseAdd(Plugin.UserAgent);
 
-            if (File.Exists(BookmarkedSongsPath))
-            {
-                _bookmarkHashes = JsonConvert.DeserializeObject<HashSet<string>>(File.ReadAllText(BookmarkedSongsPath, Encoding.UTF8));
-            }
+            var path = BookmarkedSongsPath;
+            _loadedHashes = Task.Run(() => File.Exists(path)
+                ? JsonConvert.DeserializeObject<HashSet<string>>(File.ReadAllText(path, Encoding.UTF8))
+                : new HashSet<string>());
+            _pendingStorage = _loadedHashes;
+        }
+
+        internal async Task InitializeAsync()
+        {
+            var hashes = await _loadedHashes;
+            await UnityGame.SwitchToMainThreadAsync();
+            if (_stopping) return;
+            _bookmarkHashes = hashes;
+            _loaded = true;
         }
 
         public void Store()
         {
-            File.WriteAllText(BookmarkedSongsPath, JsonConvert.SerializeObject(_bookmarkHashes), Encoding.UTF8);
+            if (_loaded && !_stopping)
+                QueueStore().GetAwaiter().GetResult();
+        }
+
+        internal void StoreAndFlush()
+        {
+            if (_loaded && !_stopping)
+                QueueStore();
+            _stopping = true;
+            Task files;
+            lock (_storageLock)
+                files = _pendingStorage;
+            try { files.GetAwaiter().GetResult(); }
+            catch (Exception e) { Plugin.LOG.Critical(e); }
+        }
+
+        private Task QueueStore()
+        {
+            var hashes = _bookmarkHashes?.ToArray();
+            var path = BookmarkedSongsPath;
+            lock (_storageLock)
+            {
+                var previous = _pendingStorage;
+                var next = Task.Run(async () =>
+                {
+                    try { await previous.ConfigureAwait(false); }
+                    catch { }
+                    File.WriteAllText(path, JsonConvert.SerializeObject(hashes), Encoding.UTF8);
+                });
+                // Storage tasks never wait for main-thread publication.
+                _pendingStorage = next;
+                return next;
+            }
         }
 
         public async Task Sync(bool interactive, Func<Task> cb = null)
         {
             try
             {
+                await UnityGame.SwitchToMainThreadAsync();
+                if (_stopping) return;
                 var bookmarks = await GetBookmarks(interactive, cb ?? (() => Task.CompletedTask));
-                _bookmarkHashes = bookmarks.Select(x => x.LatestVersion.Hash.ToUpper()).ToHashSet();
+                await UnityGame.SwitchToMainThreadAsync();
+                if (_stopping) return;
+                var version = _bookmarkVersion;
+                // These freshly decoded maps have not been handed to UI or download consumers.
+                var prepared = await Task.Run(() =>
+                {
+                    var ownedHashes = bookmarks.Select(x => x.LatestVersion.Hash.ToUpper()).ToArray();
+                    return Tuple.Create(ownedHashes, new HashSet<string>(ownedHashes));
+                });
+                await UnityGame.SwitchToMainThreadAsync();
+                if (_stopping) return;
+                var hashes = prepared.Item1;
+                if (version == _bookmarkVersion)
+                {
+                    _bookmarkHashes = prepared.Item2;
+                    ++_bookmarkVersion;
+                }
 
-                var toDownload = bookmarks.Where(b => !SongDownloader.IsSongDownloaded(b.LatestVersion.Hash.ToUpper())).ToList();
+                var toDownload = new List<Beatmap>();
+                for (var i = 0; i < bookmarks.Count; ++i)
+                    if (!SongDownloader.IsSongDownloaded(hashes[i]))
+                        toDownload.Add(bookmarks[i]);
                 Plugin.LOG.Info($"Got {bookmarks.Count} bookmarks. {toDownload.Count} to download");
 
                 foreach (var beatmap in toDownload)
@@ -67,6 +136,8 @@ namespace BeatSaverDownloader.Bookmarks
                     try
                     {
                         var image = await beatmap.LatestVersion.DownloadCoverImage();
+                        await UnityGame.SwitchToMainThreadAsync();
+                        if (_stopping) return;
                         icon = Sprites.LoadSpriteRaw(image);
                     }
                     catch (Exception)
@@ -74,6 +145,8 @@ namespace BeatSaverDownloader.Bookmarks
                         // ignored
                     }
 
+                    await UnityGame.SwitchToMainThreadAsync();
+                    if (_stopping) return;
                     _queueManager.AddToQueue(beatmap, icon);
                 }
             }
@@ -137,8 +210,13 @@ namespace BeatSaverDownloader.Bookmarks
             {
                 if (response == null) return null;
 
-                var content = await response.Content.ReadAsStringAsync();
-                return new BookmarkPage(JsonConvert.DeserializeObject<BookmarkResponse>(content), interactive, cb, page, this);
+                var result = await Task.Run(async () =>
+                {
+                    var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                    return JsonConvert.DeserializeObject<BookmarkResponse>(content);
+                }, token);
+                token.ThrowIfCancellationRequested();
+                return new BookmarkPage(result, interactive, cb, page, this);
             }, token, interactive);
         }
 
@@ -164,6 +242,7 @@ namespace BeatSaverDownloader.Bookmarks
                     {
                         _bookmarkHashes.Add(bReq.Hash);
                     }
+                    ++_bookmarkVersion;
                     else
                     {
                         _bookmarkHashes.Remove(bReq.Hash);
@@ -176,6 +255,8 @@ namespace BeatSaverDownloader.Bookmarks
 
         private async Task<T> MakeRequest<T>(HttpRequestMessage req, Func<Task> cb, Func<Task<T>> retryCallback, Func<HttpResponseMessage, Task<T>> completeCallback, CancellationToken token = new CancellationToken(), bool interactive = true)
         {
+            await UnityGame.SwitchToMainThreadAsync();
+            if (_stopping) throw new TokenApi.InvalidOauthCredentialsException("Downloader is stopping");
             try
             {
                 if (PluginConfig.UserTokens?.CouldBeValid == true)
@@ -184,6 +265,8 @@ namespace BeatSaverDownloader.Bookmarks
                     OauthConfig.Current.CustomiseRequest(req);
 
                     var response = await _bookmarksClient.SendAsync(req, token);
+                    await UnityGame.SwitchToMainThreadAsync();
+                    if (_stopping) throw new TokenApi.InvalidOauthCredentialsException("Downloader is stopping");
 
                     if (response.StatusCode != HttpStatusCode.Unauthorized)
                         return await completeCallback.Invoke(response).ConfigureAwait(false);
