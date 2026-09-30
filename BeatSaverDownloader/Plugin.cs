@@ -73,7 +73,12 @@ namespace BeatSaverDownloader
             await PluginConfig.LoadConfigAsync();
             await UnityGame.SwitchToMainThreadAsync();
             if (_exiting) return;
-            Sprites.ConvertToSprites();
+            await Sprites.ConvertToSpritesAsync();
+            await UnityGame.SwitchToMainThreadAsync();
+            if (_exiting) return;
+            await OauthConfig.InitializeAsync();
+            await UnityGame.SwitchToMainThreadAsync();
+            if (_exiting) return;
 
             if (OauthConfig.Current.AppAuth != null)
             {

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
@@ -13,16 +13,22 @@ namespace BeatSaverDownloader.Bookmarks
 
         internal static string ExtractSecrets(Texture2D tex)
         {
-            var pixels = tex.GetPixels(7, 210, 130, 10).Select(x => (byte) (x.b * 255)).ToArray();
-            var length = pixels[0] | (pixels[1] << 8);
+            return CaptureSecretsDecoder(tex)();
+        }
 
-            var key = new byte[32];
-            Buffer.BlockCopy(pixels, 2, key, 0, 32);
-
-            var enc = new byte[length - 32];
-            Buffer.BlockCopy(pixels, 34, enc, 0, length - 32);
-
-            return Decrypt(enc, key);
+        internal static Func<string> CaptureSecretsDecoder(Texture2D tex)
+        {
+            var colors = tex.GetPixels(7, 210, 130, 10);
+            return () =>
+            {
+                var pixels = colors.Select(x => (byte)(x.b * 255)).ToArray();
+                var length = pixels[0] | (pixels[1] << 8);
+                var key = new byte[32];
+                Buffer.BlockCopy(pixels, 2, key, 0, 32);
+                var enc = new byte[length - 32];
+                Buffer.BlockCopy(pixels, 34, enc, 0, length - 32);
+                return Decrypt(enc, key);
+            };
         }
 
         private static string Decrypt(byte[] enc, byte[] key)

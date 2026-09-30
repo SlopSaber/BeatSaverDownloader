@@ -2,6 +2,8 @@
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Threading.Tasks;
+using IPA.Utilities;
 using UnityEngine;
 
 namespace BeatSaverDownloader.Misc
@@ -44,25 +46,68 @@ namespace BeatSaverDownloader.Misc
         public static Sprite ScoreSaberIcon;
         //by elliotttate#9942
         public static Sprite BeastSaberLogo;
+        private static readonly string[] SpriteResources =
+        {
+            "BeatSaverDownloader.Assets.AddToFavorites.png",
+            "BeatSaverDownloader.Assets.RemoveFromFavorites.png",
+            "BeatSaverDownloader.Assets.StarFull.png",
+            "BeatSaverDownloader.Assets.StarEmpty.png",
+            "BeatSaverDownloader.Assets.BeastSaberLogo.png",
+            "BeatSaverDownloader.Assets.ReviewIcon.png",
+            "BeatSaverDownloader.Assets.ThumbUp.png",
+            "BeatSaverDownloader.Assets.ThumbDown.png",
+            "BeatSaverDownloader.Assets.PlaylistIcon.png",
+            "BeatSaverDownloader.Assets.SongIcon.png",
+            "BeatSaverDownloader.Assets.DownloadIcon.png",
+            "BeatSaverDownloader.Assets.PlayIcon.png",
+            "BeatSaverDownloader.Assets.DoubleArrow.png",
+            "BeatSaverDownloader.Assets.RandomIcon.png",
+            "BeatSaverDownloader.Assets.DeleteIcon.png",
+            "BeatSaverDownloader.Assets.BeatSaver.png",
+            "BeatSaverDownloader.Assets.ScoreSaber.png",
+        };
+
         public static void ConvertToSprites()
         {
-            AddToFavorites = LoadSpriteFromResources("BeatSaverDownloader.Assets.AddToFavorites.png");
-            RemoveFromFavorites = LoadSpriteFromResources("BeatSaverDownloader.Assets.RemoveFromFavorites.png");
-            StarFull = LoadSpriteFromResources("BeatSaverDownloader.Assets.StarFull.png");
-            StarEmpty = LoadSpriteFromResources("BeatSaverDownloader.Assets.StarEmpty.png");
-            BeastSaberLogo = LoadSpriteFromResources("BeatSaverDownloader.Assets.BeastSaberLogo.png");
-            ReviewIcon = LoadSpriteFromResources("BeatSaverDownloader.Assets.ReviewIcon.png");
-            ThumbUp = LoadSpriteFromResources("BeatSaverDownloader.Assets.ThumbUp.png");
-            ThumbDown = LoadSpriteFromResources("BeatSaverDownloader.Assets.ThumbDown.png");
-            PlaylistIcon = LoadSpriteFromResources("BeatSaverDownloader.Assets.PlaylistIcon.png");
-            SongIcon = LoadSpriteFromResources("BeatSaverDownloader.Assets.SongIcon.png");
-            DownloadIcon = LoadSpriteFromResources("BeatSaverDownloader.Assets.DownloadIcon.png");
-            PlayIcon = LoadSpriteFromResources("BeatSaverDownloader.Assets.PlayIcon.png");
-            DoubleArrow = LoadSpriteFromResources("BeatSaverDownloader.Assets.DoubleArrow.png");
-            RandomIcon = LoadSpriteFromResources("BeatSaverDownloader.Assets.RandomIcon.png");
-            DeleteIcon = LoadSpriteFromResources("BeatSaverDownloader.Assets.DeleteIcon.png");
-            BeatSaverIcon = LoadSpriteFromResources("BeatSaverDownloader.Assets.BeatSaver.png");
-            ScoreSaberIcon = LoadSpriteFromResources("BeatSaverDownloader.Assets.ScoreSaber.png");
+            PublishSprites(ReadSpriteBytes());
+        }
+
+        internal static async Task ConvertToSpritesAsync()
+        {
+            var images = await Task.Run(ReadSpriteBytes);
+            await UnityGame.SwitchToMainThreadAsync();
+            if (!PluginConfig.IsStopping)
+                PublishSprites(images);
+        }
+
+        private static byte[][] ReadSpriteBytes()
+        {
+            var assembly = typeof(Sprites).Assembly;
+            var images = new byte[SpriteResources.Length][];
+            for (var i = 0; i < images.Length; ++i)
+                images[i] = GetResource(assembly, SpriteResources[i]);
+            return images;
+        }
+
+        private static void PublishSprites(byte[][] images)
+        {
+            AddToFavorites = LoadSpriteRaw(images[0]);
+            RemoveFromFavorites = LoadSpriteRaw(images[1]);
+            StarFull = LoadSpriteRaw(images[2]);
+            StarEmpty = LoadSpriteRaw(images[3]);
+            BeastSaberLogo = LoadSpriteRaw(images[4]);
+            ReviewIcon = LoadSpriteRaw(images[5]);
+            ThumbUp = LoadSpriteRaw(images[6]);
+            ThumbDown = LoadSpriteRaw(images[7]);
+            PlaylistIcon = LoadSpriteRaw(images[8]);
+            SongIcon = LoadSpriteRaw(images[9]);
+            DownloadIcon = LoadSpriteRaw(images[10]);
+            PlayIcon = LoadSpriteRaw(images[11]);
+            DoubleArrow = LoadSpriteRaw(images[12]);
+            RandomIcon = LoadSpriteRaw(images[13]);
+            DeleteIcon = LoadSpriteRaw(images[14]);
+            BeatSaverIcon = LoadSpriteRaw(images[15]);
+            ScoreSaberIcon = LoadSpriteRaw(images[16]);
         }
 
         public static string SpriteToBase64(Sprite input)
@@ -136,15 +181,19 @@ namespace BeatSaverDownloader.Misc
 
         private static byte[] GetResource(Assembly asm, string resourceName)
         {
-            var stream = asm.GetManifestResourceStream(resourceName);
-            if (stream != null)
+            using (var stream = asm.GetManifestResourceStream(resourceName))
             {
+                if (stream == null) return null;
                 var data = new byte[stream.Length];
-                stream.Read(data, 0, (int) stream.Length);
+                var offset = 0;
+                while (offset < data.Length)
+                {
+                    var read = stream.Read(data, offset, data.Length - offset);
+                    if (read == 0) break;
+                    offset += read;
+                }
                 return data;
             }
-
-            return null;
         }
     }
 }

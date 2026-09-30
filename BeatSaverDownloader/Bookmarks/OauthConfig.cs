@@ -1,7 +1,9 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
+using System.Threading.Tasks;
+using IPA.Utilities;
 using BeatSaverDownloader.Misc;
 
 namespace BeatSaverDownloader.Bookmarks
@@ -19,43 +21,7 @@ namespace BeatSaverDownloader.Bookmarks
                 {
                     try
                     {
-                        var secrets = Crypto.ExtractSecrets(Sprites.AddToFavorites.texture).Split(',');
-
-                        if (secrets[0].Length > 0)
-                        {
-                            Configs["LOCAL"] = new OauthConfig(
-                                "http://localhost:8080/oauth2/authorize",
-                                "http://localhost:8080/api/oauth2/token",
-                                "BeatSaverDownloader",
-                                secrets[0],
-                                "http://localhost:8080/api/",
-                                secrets[1].Length > 0 ? secrets[1] : null
-                            );
-                        }
-
-                        if (secrets[2].Length > 0)
-                        {
-                            Configs["STAGE"] = new OauthConfig(
-                                "https://stg.beatsaver.com/oauth2/authorize",
-                                "https://stg.beatsaver.com/api/oauth2/token",
-                                "BeatSaverDownloader",
-                                secrets[2],
-                                "https://stg.beatsaver.com/api/",
-                                secrets[3].Length > 0 ? secrets[3] : null
-                            );
-                        }
-
-                        if (secrets[4].Length > 0)
-                        {
-                            Configs["PROD"] = new OauthConfig(
-                                "https://beatsaver.com/oauth2/authorize",
-                                "https://beatsaver.com/api/oauth2/token",
-                                "BeatSaverDownloader",
-                                secrets[4],
-                                "https://beatsaver.com/api/",
-                                secrets[5].Length > 0 ? secrets[5] : null
-                            );
-                        }
+                        PublishConfigs(PrepareConfigs(Crypto.ExtractSecrets(Sprites.AddToFavorites.texture)));
                     }
                     catch (Exception)
                     {
@@ -66,6 +32,75 @@ namespace BeatSaverDownloader.Bookmarks
 
                 return Configs.TryGetValue(PluginConfig.OauthEnvironment, out var res) ? res : Configs.Values.First();
             }
+        }
+
+        internal static async Task InitializeAsync()
+        {
+            await UnityGame.SwitchToMainThreadAsync();
+            if (Configs.Count != 0 || PluginConfig.IsStopping) return;
+            try
+            {
+                var decode = Crypto.CaptureSecretsDecoder(Sprites.AddToFavorites.texture);
+                var configs = await Task.Run(() => PrepareConfigs(decode()));
+                await UnityGame.SwitchToMainThreadAsync();
+                if (Configs.Count == 0 && !PluginConfig.IsStopping)
+                    PublishConfigs(configs);
+            }
+            catch (Exception)
+            {
+                await UnityGame.SwitchToMainThreadAsync();
+                if (Configs.Count == 0 && !PluginConfig.IsStopping)
+                    Configs["ERROR"] = Empty;
+            }
+        }
+
+        private static Dictionary<string, OauthConfig> PrepareConfigs(string encodedSecrets)
+        {
+            var secrets = encodedSecrets.Split(',');
+            var configs = new Dictionary<string, OauthConfig>();
+
+            if (secrets[0].Length > 0)
+            {
+                configs["LOCAL"] = new OauthConfig(
+                    "http://localhost:8080/oauth2/authorize",
+                    "http://localhost:8080/api/oauth2/token",
+                    "BeatSaverDownloader",
+                    secrets[0],
+                    "http://localhost:8080/api/",
+                    secrets[1].Length > 0 ? secrets[1] : null
+                );
+            }
+
+            if (secrets[2].Length > 0)
+            {
+                configs["STAGE"] = new OauthConfig(
+                    "https://stg.beatsaver.com/oauth2/authorize",
+                    "https://stg.beatsaver.com/api/oauth2/token",
+                    "BeatSaverDownloader",
+                    secrets[2],
+                    "https://stg.beatsaver.com/api/",
+                    secrets[3].Length > 0 ? secrets[3] : null
+                );
+            }
+
+            if (secrets[4].Length > 0)
+            {
+                configs["PROD"] = new OauthConfig(
+                    "https://beatsaver.com/oauth2/authorize",
+                    "https://beatsaver.com/api/oauth2/token",
+                    "BeatSaverDownloader",
+                    secrets[4],
+                    "https://beatsaver.com/api/",
+                    secrets[5].Length > 0 ? secrets[5] : null
+                );
+            }
+            return configs;
+        }
+
+        private static void PublishConfigs(Dictionary<string, OauthConfig> configs)
+        {
+            foreach (var pair in configs)
+                Configs[pair.Key] = pair.Value;
         }
 
         public static List<object> Options => Configs.Keys.ToList<object>();
