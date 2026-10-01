@@ -30,6 +30,7 @@ namespace BeatSaverDownloader.Bookmarks
         private HashSet<string> _bookmarkHashes = new HashSet<string>();
         private readonly QueueManager _queueManager;
         private readonly object _storageLock = new object();
+        private readonly object _bookmarkLock = new object();
         private readonly Task<HashSet<string>> _loadedHashes;
         private Task _pendingStorage;
         private bool _loaded;
@@ -57,7 +58,8 @@ namespace BeatSaverDownloader.Bookmarks
             var hashes = await _loadedHashes;
             await UnityGame.SwitchToMainThreadAsync();
             if (_stopping) return;
-            _bookmarkHashes = hashes;
+            lock (_bookmarkLock)
+                _bookmarkHashes = hashes;
             _loaded = true;
         }
 
@@ -81,7 +83,9 @@ namespace BeatSaverDownloader.Bookmarks
 
         private Task QueueStore()
         {
-            var hashes = _bookmarkHashes?.ToArray();
+            string[] hashes;
+            lock (_bookmarkLock)
+                hashes = _bookmarkHashes?.ToArray();
             var path = BookmarkedSongsPath;
             lock (_storageLock)
             {
@@ -119,7 +123,8 @@ namespace BeatSaverDownloader.Bookmarks
                 var hashes = prepared.Item1;
                 if (version == _bookmarkVersion)
                 {
-                    _bookmarkHashes = prepared.Item2;
+                    lock (_bookmarkLock)
+                        _bookmarkHashes = prepared.Item2;
                     ++_bookmarkVersion;
                 }
 
@@ -170,7 +175,12 @@ namespace BeatSaverDownloader.Bookmarks
             return IsBookmarked(hash);
         }
 
-        private bool IsBookmarked(string hash) => _bookmarkHashes?.Contains(hash.ToUpper()) == true;
+        private bool IsBookmarked(string hash)
+        {
+            var normalized = hash.ToUpper();
+            lock (_bookmarkLock)
+                return _bookmarkHashes?.Contains(normalized) == true;
+        }
 
         private async Task<List<Beatmap>> GetBookmarks(bool interactive, Func<Task> cb)
         {
@@ -238,13 +248,12 @@ namespace BeatSaverDownloader.Bookmarks
 
                 if (bReq.Hash != null && result == true)
                 {
-                    if (bReq.Bookmarked)
+                    lock (_bookmarkLock)
                     {
-                        _bookmarkHashes.Add(bReq.Hash);
-                    }
-                    else
-                    {
-                        _bookmarkHashes.Remove(bReq.Hash);
+                        if (bReq.Bookmarked)
+                            _bookmarkHashes.Add(bReq.Hash);
+                        else
+                            _bookmarkHashes.Remove(bReq.Hash);
                     }
                     ++_bookmarkVersion;
                 }
