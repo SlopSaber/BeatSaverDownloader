@@ -66,6 +66,7 @@ namespace BeatSaverDownloader.UI.ViewControllers
             }
         }
         private readonly List<StrongBox<Beatmap>> _songs = new List<StrongBox<Beatmap>>();
+        private static readonly SemaphoreSlim ScoreRequests = new SemaphoreSlim(1, 1);
         public readonly List<Tuple<Beatmap, Sprite>> MultiSelectSongs = new List<Tuple<Beatmap, Sprite>>();
         public LoadingControl loadingSpinner;
         private Progress<double> _fetchProgress;
@@ -476,22 +477,38 @@ namespace BeatSaverDownloader.UI.ViewControllers
             }
         }
 
-        private async Task<Songs> FetchFromScoreSaber(Filters.ScoreSaberFilterOptions filter, CancellationToken token)
+        private static async Task<Songs> FetchFromScoreSaber(Filters.ScoreSaberFilterOptions filter,
+            uint page, CancellationToken token, IProgress<double> progress)
+        {
+            // The library shares a mutable serializer, including across cancelled requests.
+            await ScoreRequests.WaitAsync(token).ConfigureAwait(false);
+            try
+            {
+                return await Task.Run(() => RequestScoreSaber(filter, page, token, progress), token).ConfigureAwait(false);
+            }
+            finally
+            {
+                ScoreRequests.Release();
+            }
+        }
+
+        private static Task<Songs> RequestScoreSaber(Filters.ScoreSaberFilterOptions filter,
+            uint page, CancellationToken token, IProgress<double> progress)
         {
             switch (filter)
             {
                 case Filters.ScoreSaberFilterOptions.Trending:
-                    return await ScoreSaber.Trending(_lastPage, token, _fetchProgress);
+                    return ScoreSaber.Trending(page, token, progress);
                 case Filters.ScoreSaberFilterOptions.Ranked:
-                    return await ScoreSaber.Ranked(_lastPage, token, _fetchProgress);
+                    return ScoreSaber.Ranked(page, token, progress);
                 case Filters.ScoreSaberFilterOptions.Qualified:
-                    return await ScoreSaber.Qualified(_lastPage, token, _fetchProgress);
+                    return ScoreSaber.Qualified(page, token, progress);
                 case Filters.ScoreSaberFilterOptions.Loved:
-                    return await ScoreSaber.Loved(_lastPage, token, _fetchProgress);
+                    return ScoreSaber.Loved(page, token, progress);
                 case Filters.ScoreSaberFilterOptions.Plays:
-                    return await ScoreSaber.Plays(_lastPage, token, _fetchProgress);
+                    return ScoreSaber.Plays(page, token, progress);
                 case Filters.ScoreSaberFilterOptions.Difficulty:
-                    return await ScoreSaber.Difficulty(_lastPage, token, _fetchProgress);
+                    return ScoreSaber.Difficulty(page, token, progress);
                 default:
                     throw new ArgumentOutOfRangeException();
             }
@@ -504,7 +521,8 @@ namespace BeatSaverDownloader.UI.ViewControllers
             {
                 token.ThrowIfCancellationRequested();
                 _fetchingDetails = $"({i + 1}/{count})";
-                var page = await FetchFromScoreSaber(CurrentScoreSaberFilter, token);
+                var page = await FetchFromScoreSaber(CurrentScoreSaberFilter, _lastPage, token, _fetchProgress);
+                await UnityGame.SwitchToMainThreadAsync();
                 token.ThrowIfCancellationRequested();
                 _lastPage++;
 
@@ -514,12 +532,17 @@ namespace BeatSaverDownloader.UI.ViewControllers
                 if (page?.songs?.Any() != true) break;
             }
 
-            var maps = await Plugin.BeatSaver.BeatmapByHash(newMaps.Select(x => x.id).ToArray());
+            var hashes = await Task.Run(() => newMaps.Select(x => x.id).ToArray(), token);
+            await UnityGame.SwitchToMainThreadAsync();
             token.ThrowIfCancellationRequested();
-            var newMapsCast = newMaps
+            var maps = await Plugin.BeatSaver.BeatmapByHash(hashes);
+            token.ThrowIfCancellationRequested();
+            var newMapsCast = await Task.Run(() => newMaps
                 .Select(x => maps.TryGetValue(x.id.ToUpperInvariant(), out var fromScoreSaber) ? fromScoreSaber : null)
                 .Where(x => x != null)
-                .ToList();
+                .ToList(), token);
+            await UnityGame.SwitchToMainThreadAsync();
+            token.ThrowIfCancellationRequested();
 
             AddMapsToView(newMapsCast);
             _fetchingDetails = "";
